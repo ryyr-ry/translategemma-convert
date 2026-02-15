@@ -61,13 +61,43 @@ def main():
     weight_map = index["weight_map"]
 
     # テキストデコーダの重みだけフィルタ
-    # マルチモーダル: model.language_model.model.layers.* → テキスト: model.layers.*
+    # まずキー名のパターンを確認
+    all_keys = list(weight_map.keys())
+    print(f"\n  最初の10キー（デバッグ）:")
+    for k in all_keys[:10]:
+        print(f"    {k}")
+
+    # language_model のプレフィックスを自動検出
+    # 可能なパターン: "model.language_model.", "language_model.", その他
+    prefix = None
+    for candidate in ["model.language_model.", "language_model."]:
+        count = sum(1 for k in all_keys if k.startswith(candidate))
+        if count > 0:
+            prefix = candidate
+            print(f"\n  検出されたプレフィックス: '{prefix}' ({count} 件)")
+            break
+
+    if prefix is None:
+        # language_model が見つからない場合、model.layers があるか確認（既にテキストのみかも）
+        has_layers = sum(1 for k in all_keys if k.startswith("model.layers."))
+        if has_layers > 0:
+            print(f"\n  ⚠️ 既にテキストデコーダ形式です（model.layers.* が {has_layers} 件）")
+            prefix = ""  # プレフィックス無し = そのままコピー
+        else:
+            print(f"\n  ❌ テキストデコーダのキーが見つかりません")
+            print(f"  全ユニークプレフィックス:")
+            prefixes = set(k.split(".")[0] for k in all_keys)
+            for p in sorted(prefixes):
+                print(f"    {p}.* : {sum(1 for k in all_keys if k.startswith(p + '.'))}")
+            sys.exit(1)
+
     text_weights = {}
     for key, shard_file in weight_map.items():
-        if key.startswith("model.language_model."):
-            # model.language_model.model.xxx → model.xxx
-            # model.language_model.lm_head.xxx → lm_head.xxx
-            new_key = key.replace("model.language_model.", "")
+        if prefix == "":
+            # 既にテキスト形式 → 全てコピー
+            text_weights[key] = shard_file
+        elif key.startswith(prefix):
+            new_key = key[len(prefix):]  # プレフィックスを除去
             text_weights[new_key] = shard_file
 
     total = len(weight_map)
