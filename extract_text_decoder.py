@@ -109,14 +109,8 @@ def main():
     size_gb = os.path.getsize(output_safetensors) / 1024 / 1024 / 1024
     print(f"  保存完了: {size_gb:.2f} GB")
 
-    # safetensors index も作り直す
-    new_weight_map = {k: "model.safetensors" for k in extracted.keys()}
-    new_index = {
-        "metadata": {"total_size": sum(t.numel() * t.element_size() for t in extracted.values())},
-        "weight_map": new_weight_map,
-    }
-    with open(os.path.join(OUTPUT_DIR, "model.safetensors.index.json"), "w") as f:
-        json.dump(new_index, f, indent=2)
+
+
 
     # --- 6. 最終確認 ---
     print("\n=== 抽出結果 ===")
