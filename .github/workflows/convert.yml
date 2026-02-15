@@ -21,8 +21,6 @@ jobs:
           sudo swapon /swapfile
           echo "=== メモリ状況 ==="
           free -h
-          echo "=== ディスク状況 ==="
-          df -h /
 
       - name: Python セットアップ
         uses: actions/setup-python@v5
@@ -31,23 +29,30 @@ jobs:
 
       - name: ライブラリインストール
         run: |
-          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub
+          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub safetensors
 
       - name: HF ログイン
         run: |
           python -c "from huggingface_hub import login; login(token='${{ secrets.HF_TOKEN }}')"
 
+      - name: テキストデコーダ抽出
+        run: |
+          echo "=== テキスト部分だけ公式モデルから抽出 ==="
+          python extract_text_decoder.py ./translategemma-text-only
+          echo ""
+          echo "=== メモリ状況 ==="
+          free -h
+          echo "=== ディスク状況 ==="
+          df -h /
+
       - name: model builder パッチ適用
         run: python patch_builder.py
 
-      - name: ディスク空き確認
-        run: df -h
-
       - name: モデル変換 (INT4)
         run: |
-          echo "=== 変換開始 ==="
+          echo "=== 変換開始（テキストデコーダのみ） ==="
           python -m onnxruntime_genai.models.builder \
-            -m google/translategemma-4b-it \
+            -i ./translategemma-text-only \
             -o ./translategemma-genai \
             -p int4 \
             -e cpu
@@ -67,6 +72,9 @@ jobs:
               exit 1
             fi
           done
+
+      - name: 抽出元を削除してディスク節約
+        run: rm -rf ./translategemma-text-only
 
       - name: Artifact としてアップロード
         uses: actions/upload-artifact@v4
