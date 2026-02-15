@@ -6,10 +6,21 @@ on:
 jobs:
   convert:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: スワップ追加 (16GB)
+        run: |
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "=== メモリ状況 ==="
+          free -h
+          echo "=== ディスク状況 ==="
+          df -h /
 
       - name: Python セットアップ
         uses: actions/setup-python@v5
@@ -32,11 +43,13 @@ jobs:
 
       - name: モデル変換 (INT4)
         run: |
+          echo "=== 変換開始 ==="
           python -m onnxruntime_genai.models.builder \
             -m google/translategemma-4b-it \
             -o ./translategemma-genai \
             -p int4 \
             -e cpu
+          echo "=== 変換完了 ==="
 
       - name: 変換結果確認
         run: |
