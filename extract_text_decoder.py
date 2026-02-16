@@ -121,7 +121,7 @@ def main():
     print("\n=== テキストデコーダ抽出中 ===")
     extracted = {}
     for new_key, shard_file in text_weights.items():
-        old_key = "model.language_model." + new_key
+        old_key = prefix + new_key
         shard_path = shard_paths[shard_file]
 
         # メモリマップで開く（RAMを使わない）
