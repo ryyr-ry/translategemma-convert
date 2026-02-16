@@ -55,7 +55,8 @@ jobs:
             -m ./translategemma-text-only \
             -o ./translategemma-genai \
             -p int4 \
-            -e qnn
+            -e cpu \
+            --extra_options use_qdq=True
           echo "=== 変換完了 ==="
 
       - name: 変換結果確認
