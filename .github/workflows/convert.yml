@@ -32,7 +32,7 @@ jobs:
 
       - name: ライブラリインストール
         run: |
-          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub
+          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub safetensors
 
       - name: HF ログイン
         run: |
@@ -41,11 +41,18 @@ jobs:
       - name: model builder パッチ適用
         run: python patch_builder.py
 
+      - name: テキストデコーダ抽出
+        run: |
+          echo "=== マルチモーダルモデルからテキストデコーダを抽出 ==="
+          python extract_text_decoder.py ./translategemma-text-only
+          echo "=== 抽出完了 ==="
+          ls -lh ./translategemma-text-only/
+
       - name: モデル変換 (INT4)
         run: |
           echo "=== 変換開始 ==="
           python -m onnxruntime_genai.models.builder \
-            -m google/translategemma-4b-it \
+            -m ./translategemma-text-only \
             -o ./translategemma-genai \
             -p int4 \
             -e cpu
