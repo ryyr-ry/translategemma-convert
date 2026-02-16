@@ -6,21 +6,24 @@ on:
 jobs:
   convert:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: スワップ拡張 (16GB)
+      - name: スワップ拡張 (32GB) + メモリ設定
         run: |
           sudo swapoff /swapfile || true
           sudo rm -f /swapfile
-          sudo fallocate -l 16G /swapfile
+          sudo fallocate -l 32G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
+          echo 1 | sudo tee /proc/sys/vm/overcommit_memory
           echo "=== メモリ状況 ==="
           free -h
+          echo "=== ディスク ==="
+          df -h /
 
       - name: Python セットアップ
         uses: actions/setup-python@v5
@@ -29,30 +32,20 @@ jobs:
 
       - name: ライブラリインストール
         run: |
-          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub safetensors
+          pip install onnxruntime-genai onnx onnx_ir torch transformers sentencepiece protobuf huggingface_hub
 
       - name: HF ログイン
         run: |
           python -c "from huggingface_hub import login; login(token='${{ secrets.HF_TOKEN }}')"
-
-      - name: テキストデコーダ抽出
-        run: |
-          echo "=== テキスト部分だけ公式モデルから抽出 ==="
-          python extract_text_decoder.py ./translategemma-text-only
-          echo ""
-          echo "=== メモリ状況 ==="
-          free -h
-          echo "=== ディスク状況 ==="
-          df -h /
 
       - name: model builder パッチ適用
         run: python patch_builder.py
 
       - name: モデル変換 (INT4)
         run: |
-          echo "=== 変換開始（テキストデコーダのみ） ==="
+          echo "=== 変換開始 ==="
           python -m onnxruntime_genai.models.builder \
-            -i ./translategemma-text-only \
+            -m google/translategemma-4b-it \
             -o ./translategemma-genai \
             -p int4 \
             -e cpu
@@ -63,7 +56,6 @@ jobs:
           echo "=== ファイル一覧 ==="
           ls -lh ./translategemma-genai/
           echo ""
-          echo "=== 必須ファイルチェック ==="
           for f in genai_config.json tokenizer.json; do
             if [ -f "./translategemma-genai/$f" ]; then
               echo "✅ $f"
@@ -72,9 +64,6 @@ jobs:
               exit 1
             fi
           done
-
-      - name: 抽出元を削除してディスク節約
-        run: rm -rf ./translategemma-text-only
 
       - name: Artifact としてアップロード
         uses: actions/upload-artifact@v4
